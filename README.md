@@ -6,6 +6,8 @@
 	- CMD: `.\venv\Scripts\Activate.cmd`
 	- PowerShell: `.\venv\Scripts\Activate.ps1`
 	
-3. Run the code:
+3. Install the dependances: `pip install -r requirements.txt`
+
+4. Run the code:
 	- `py .\drive.py`
-	- Or run it in your editor of choise
+	- Or run it in your editor of choice
