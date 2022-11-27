@@ -12,7 +12,7 @@ img_gray = cv2.cvtColor(img_orig, cv2.COLOR_BGR2GRAY)
 # cv2.destroyAllWindows()
 
 
-def edge_detect_imgs(img, kernel_size: tuple, color_space: str):
+def edge_detect_images(img, kernel_size: tuple, color_space: str):
     # set the lower and upper threshold
     med_val = np.median(img)
     lower = int(max(0, .8 * med_val))
@@ -43,7 +43,7 @@ def edge_detect_imgs(img, kernel_size: tuple, color_space: str):
 
 
 # plot the images - Colored
-output_color = edge_detect_imgs(img_orig, (5, 5), 'RGB')
+output_color = edge_detect_images(img_orig, (5, 5), 'RGB')
 images_color = output_color[0]
 titles = output_color[1]
 plt.figure(figsize=(20, 15))
@@ -57,7 +57,7 @@ plt.show()
 
 
 # plot the images - Gray
-output_gray = edge_detect_imgs(img_gray, (5, 5), 'Gray')
+output_gray = edge_detect_images(img_gray, (5, 5), 'Gray')
 images_gray = output_gray[0]
 titles = output_gray[1]
 plt.figure(figsize=(20, 15))

@@ -13,6 +13,8 @@ import socketio  # real-time server
 from PIL import Image  # image manipulation
 from flask import Flask  # framework for web devices
 
+from opencv_lane_detection import process_image
+
 # from keras.models import load_model  # load our saved model
 
 # Set resulting image width & height
@@ -52,11 +54,6 @@ def telemetry(sid, data):
         image = Image.open(BytesIO(base64.b64decode(data["image"])))
 
         # save frame
-        timestamp = datetime.utcnow().strftime('%Y_%m_%d_%H_%M_%S_%f')[:-3]
-        image_filename = os.path.join(r'./path', timestamp)
-        image.save('{}.jpg'.format(image_filename))
-
-        # save frame
         if args.image_folder != '':
             timestamp = datetime.utcnow().strftime('%Y_%m_%d_%H_%M_%S_%f')[:-3]
             image_filename = os.path.join(args.image_folder, timestamp)
@@ -64,19 +61,21 @@ def telemetry(sid, data):
 
         try:
             image = np.asarray(image)
-            image = resize(image)
-            image = np.array([image])
+            # image = resize(image)
+            # image = np.array([image])
 
             # steering_angle = float(net.predict(image))
-            steering_angle = random.uniform(-25.0, 25.0)
+            # steering_angle = random.uniform(-25.0, 25.0)
+            steering_angle = process_image(image)
+            # steering_angle = 1.0
 
             global speed_limit
             if speed > speed_limit:
                 speed_limit = min_speed
             else:
                 speed_limit = max_speed
-            # throttle = (1.0 - steering_angle ** 2 - (speed / speed_limit) ** 2)
-            throttle = random.uniform(0.0, 10.0)
+            throttle = (1.0 - steering_angle ** 2 - (speed / speed_limit) ** 2)
+            # throttle = random.uniform(0.0, 10.0)
 
             print('{} {} {}'.format(steering_angle, throttle, speed))
             send_control(steering_angle, throttle)
