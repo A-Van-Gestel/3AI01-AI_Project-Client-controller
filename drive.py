@@ -74,7 +74,7 @@ def telemetry(sid, data):
                 speed_limit = min_speed
             else:
                 speed_limit = max_speed
-            throttle = (1.0 - steering_angle ** 2 - (speed / speed_limit) ** 2)
+            throttle = abs((1.0 - steering_angle ** 2 - (speed / speed_limit) ** 2))
             # throttle = random.uniform(0.0, 10.0)
 
             print('{} {} {}'.format(steering_angle, throttle, speed))

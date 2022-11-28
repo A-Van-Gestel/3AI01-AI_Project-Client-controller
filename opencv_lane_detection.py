@@ -31,8 +31,8 @@ def region_of_interest(img, vertices):
 
     # returning the image only where mask pixels are nonzero
     masked_image = cv2.bitwise_and(img, mask)
-    # plt.imshow(masked_image)
-    # plt.show()
+    plt.imshow(masked_image)
+    plt.show()
     return masked_image
 
 
@@ -228,8 +228,8 @@ def process_image(image):
     blur_gray = cv2.GaussianBlur(gray, kernel_size, 0)
 
     # STEP 2: Canny edge detection
-    low_threshold = 50
-    high_threshold = 150
+    low_threshold = 50  # 50
+    high_threshold = 180  # 150
     # med_val = np.median(gray)
     # low_threshold = int(max(0, .7 * med_val))
     # high_threshold = int(min(255, 1.4 * med_val))
@@ -240,7 +240,7 @@ def process_image(image):
     left = 0.0 * cols
     right = 1.0 * cols
     x_margin = 0.40 * cols
-    bottom = 0.85 * rows
+    bottom = 1.0 * rows
     top = 0.40 * rows
     top_width = 0.35 * cols
 
@@ -268,9 +268,9 @@ def process_image(image):
     rho = 1  # distance resolution in pixels of the Hough grid
     theta = np.pi / 180  # angular resolution in radians of the Hough grid
 
-    threshold = 10  # minimum number of votes (intersections in Hough grid cell)
-    min_line_length = 50  # minimum number of pixels making up a line
-    max_line_gap = 25  # maximum gap in pixels between connectable line segments
+    threshold = 20  # minimum number of votes (intersections in Hough grid cell)
+    min_line_length = 200  # minimum number of pixels making up a line
+    max_line_gap = 100  # maximum gap in pixels between connectable line segments
 
     # initialize ``good_lines`` for the purpose of the while loop
     good_lines = []
@@ -281,6 +281,7 @@ def process_image(image):
         lines = cv2.HoughLinesP(masked_edges, rho, theta, threshold, np.array([]),
                                 min_line_length, max_line_gap)
 
+        print(len(lines))
         # STEP 5: process and filter the lines found by the Hough transform
         # sort the lines by their length
         lines = sorted(lines, key=lambda x: np.linalg.norm(x[2:] - x[:2]), reverse=True)
@@ -317,40 +318,39 @@ def process_image(image):
         max_line_gap /= 2
 
     # Iterate over the output "lines" and draw lines on a blank image
-    # line_image = np.copy(image) * 0  # creating a blank to draw lines on
-    # for line in good_lines:
-    #     for x1, y1, x2, y2 in line.astype(np.uint16):
-    #         cv2.line(line_image, (x1, y1), (x2, y2), (255, 0, 0), 10)
-
-    intersection_cor = intersection_point(
-        (good_lines[0].item(0), good_lines[0].item(1)),
-        (good_lines[0].item(2), good_lines[0].item(3)),
-        (good_lines[1].item(0), good_lines[0].item(1)),
-        (good_lines[1].item(2), good_lines[0].item(3)),
-    )
+    line_image = np.copy(image) * 0  # creating a blank to draw lines on
+    for line in good_lines:
+        for x1, y1, x2, y2 in line.astype(np.uint16):
+            cv2.line(line_image, (x1, y1), (x2, y2), (255, 0, 0), 10)
 
     degrees = 0
-    if intersection_cor:
-        degrees = 90 + math.degrees(math.atan2(intersection_cor[1] - rows, intersection_cor[0] - cols/2))
+    if len(good_lines) >= 2:
+        intersection_cor = intersection_point(
+            (good_lines[0].item(0), good_lines[0].item(1)),
+            (good_lines[0].item(2), good_lines[0].item(3)),
+            (good_lines[1].item(0), good_lines[0].item(1)),
+            (good_lines[1].item(2), good_lines[0].item(3)),
+        )
+        degrees = 90 + math.degrees(math.atan2(intersection_cor[1] - rows, intersection_cor[0] - cols / 2))
 
-    # # Create a "color" binary image to combine with line image
-    # color_edges = np.dstack((edges, edges, edges))
-    #
-    # # Draw the lines on the edge image
-    # lines_edges = cv2.addWeighted(image, 0.8, line_image, 1, 0)
+    # Create a "color" binary image to combine with line image
+    color_edges = np.dstack((edges, edges, edges))
 
-    return degrees
+    # Draw the lines on the edge image
+    lines_edges = cv2.addWeighted(image, 0.8, line_image, 1, 0)
+
+    return [lines_edges, degrees]
 
 
-# if __name__ == "__main__":
-#     # Test images
-#     import os
-#
-#     test_image_dir = "./resources/"
-#     test_images = os.listdir(test_image_dir)
-#
-#     for img in test_images:
-#         print(img)
-#         image = mpimg.imread(test_image_dir + img)
-#         plt.imshow(process_image(image)[0])
-#         plt.show()
+if __name__ == "__main__":
+    # Test images
+    import os
+
+    test_image_dir = "./resources/"
+    test_images = os.listdir(test_image_dir)
+
+    for img in test_images:
+        print(img)
+        image = mpimg.imread(test_image_dir + img)
+        plt.imshow(process_image(image)[0])
+        plt.show()
