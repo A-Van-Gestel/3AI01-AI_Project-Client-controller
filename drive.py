@@ -95,6 +95,7 @@ def connect(sid, environ):
 
 
 def send_control(steering_angle, throttle):
+    steering_angle /= 25
     steering_angle = str(steering_angle).replace(".", ",")
     throttle = str(throttle).replace(".", ",")
 
