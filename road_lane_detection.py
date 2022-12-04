@@ -173,12 +173,15 @@ def get_degrees(averaged_lines, image_shape):
         print(f"mid_x: {mid_x}, mid_y: {mid_y}")
 
         degrees = 90 + math.degrees(math.atan2(mid_y - image_shape[1], mid_x - image_shape[0] / 2))
+        return degrees
 
     if left_line is not None:
         degrees = abs(degrees_left_slope)
+        return degrees
 
     if right_line is not None:
         degrees = -abs(degrees_right_slope)
+        return degrees
     return degrees
 
 
