@@ -25,6 +25,15 @@ width = 160
 max_speed = 25
 min_speed = 10
 
+# set max steering angle for our autonomous car
+max_steering_angle = 25
+
+# steering angle smoothing options
+angle_smoothing = True
+average_length = 5
+angle_history = [0.0] * average_length
+
+
 # and a speed limit
 speed_limit = max_speed
 
@@ -65,10 +74,21 @@ def telemetry(sid, data):
             # image = np.array([image])
 
             # steering_angle = float(net.predict(image))
-            # steering_angle = random.uniform(-25.0, 25.0)
             steering_angle = process_image(image)
-            steering_angle /= 25  # Steering angle needs to be normalised between -1 & 1
-            # steering_angle = 1.0
+            # Clamp steering angle between -25 & 25
+            steering_angle = max_steering_angle if steering_angle > max_steering_angle else steering_angle
+            steering_angle = -max_steering_angle if steering_angle < - max_steering_angle else steering_angle
+            # Steering angle needs to be normalised between -1 & 1
+            steering_angle /= max_steering_angle
+
+            if angle_smoothing:
+                # save steering angle to history
+                angle_history.pop(0)
+                angle_history.append(steering_angle)
+
+                # get average of steering angle over the history to smooth the output
+                steering_angle = sum(angle_history) / len(angle_history)
+                print(f"angle_history: {angle_history}")
 
             # lower the throttle as the speed increases
             # if the speed is above the current speed limit, we are on a downhill.
@@ -81,7 +101,6 @@ def telemetry(sid, data):
                 speed_limit = max_speed
                 throttle = 1 * (1.25 - abs(steering_angle))
             # throttle = 1.0 - abs(steering_angle) ** 2 - (speed / speed_limit) ** 2
-            # throttle = speed_limit - math.log(abs(steering_angle)) * speed
 
             print('{} {} {}'.format(steering_angle, throttle, speed))
             send_control(steering_angle, throttle)

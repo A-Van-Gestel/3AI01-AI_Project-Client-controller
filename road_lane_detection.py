@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import image as mpimg
 
+debug = False
+
 
 def grey(image):
     # convert to grayscale
@@ -78,10 +80,11 @@ def display_lines(image, lines):
         for line in lines:
             if line is not None:
                 x1, y1, x2, y2 = line
-                print(f"x1: {x1}")
-                print(f"y1: {y1}")
-                print(f"x2: {x2}")
-                print(f"y2: {y2}")
+                if debug:
+                    print(f"x1: {x1}")
+                    print(f"y1: {y1}")
+                    print(f"x2: {x2}")
+                    print(f"y2: {y2}")
                 # draw lines on a black image
                 cv2.line(lines_image, (x1, y1), (x2, y2), (255, 0, 0), 10)
     return lines_image
@@ -97,11 +100,13 @@ def average(image, lines):
 
     if lines is not None:
         for line in lines:
-            print(f"line: {line}")
+            if debug:
+                print(f"line: {line}")
             x1, y1, x2, y2 = line.reshape(4)
             # fit line to points, return slope and y-int
             parameters = np.polyfit((x1, x2), (y1, y2), 1)
-            print(f"parameters: {parameters}")
+            if debug:
+                print(f"parameters: {parameters}")
             slope = parameters[0]
             y_int = parameters[1]
             # lines on the right have positive slope, and lines on the left have neg slope
@@ -115,7 +120,8 @@ def average(image, lines):
         # takes average among all the columns (column0: slope, column1: y_int)
         left_avg = np.average(left, axis=0)
         # create lines based on averages calculates
-        print(f"left_avg: {left_avg}")
+        if debug:
+            print(f"left_avg: {left_avg}")
         left_line = make_points(image, left_avg)
         left_slope = math.degrees(left_avg[0])
 
@@ -123,7 +129,8 @@ def average(image, lines):
         # takes average among all the columns (column0: slope, column1: y_int)
         right_avg = np.average(right, axis=0)
         # create lines based on averages calculates
-        print(f"right_avg: {right_avg}")
+        if debug:
+            print(f"right_avg: {right_avg}")
         right_line = make_points(image, right_avg)
         right_slope = math.degrees(right_avg[0])
 
@@ -136,10 +143,11 @@ def make_points(image, average):
     y1 = image.shape[0]
     # how long we want our lines to be --> 3/5 the size of the image
     y2 = int(y1 * (3 / 5))
-    print(f"y1: {y1}")
-    print(f"y2: {y2}")
-    print(f"y1 - y_int: {y1 - y_int}")
-    print(f"y2 - y_int: {y2 - y_int}")
+    if debug:
+        print(f"y1: {y1}")
+        print(f"y2: {y2}")
+        print(f"y1 - y_int: {y1 - y_int}")
+        print(f"y2 - y_int: {y2 - y_int}")
     # determine algebraically
     x1 = int((y1 - y_int) // slope)
     x2 = int((y2 - y_int) // slope)
@@ -152,7 +160,6 @@ def hough_transform(image):
     min_line_length = 40  # minimum number of points that can form a line. Lines with less than this number of points are disregarded
     max_line_gap = 5  # maximum gap between two points to be considered in the same line.
 
-    # DRAWING LINES: (order of params) --> region of interest, bin size (P, theta), min intersections needed, placeholder array,
     lines = cv2.HoughLinesP(image,
                             rho,
                             np.pi / 180,
@@ -164,28 +171,37 @@ def hough_transform(image):
 
 
 def get_degrees(averaged_lines, image_shape):
-    degrees = 0
     left_line, right_line, degrees_left_slope, degrees_right_slope = averaged_lines
+
+    # If both lanes are detected, use the angle of the midpoint
     if left_line is not None and right_line is not None:
         left_point = (left_line[0], left_line[1])
         right_point = (right_line[0], right_line[1])
         mid_x, mid_y = midpoint(left_point, right_point)
-        print(f"mid_x: {mid_x}, mid_y: {mid_y}")
+        if debug:
+            print(f"mid_x: {mid_x}, mid_y: {mid_y}")
 
         degrees = 90 + math.degrees(math.atan2(mid_y - image_shape[1], mid_x - image_shape[0] / 2))
         return degrees
 
+    # If only the left lane is detected, use its slope
     if left_line is not None:
         degrees = abs(degrees_left_slope)
         return degrees
 
+    # If only the right lane is detected, use its slope
     if right_line is not None:
         degrees = -abs(degrees_right_slope)
         return degrees
-    return degrees
+
+    # If nothing is detected, go straight
+    return 0.0
 
 
-def process_image(image, draw_image=False):
+def process_image(image, draw_image=False, debug_prints=False):
+    global debug
+    debug = debug_prints
+
     blur = gauss(image)
     gray = grey(blur)
     edges = canny(gray)
@@ -210,6 +226,8 @@ def process_image(image, draw_image=False):
 
 
 def midpoint(point1, point2):
+    # (x1 + x2) /2,
+    # (y1 + y2) /2
     return ((point1[0] + point2[0]) / 2,
             (point1[1] + point2[1]) / 2)
 
@@ -235,7 +253,7 @@ if __name__ == "__main__":
             [image, f"{img}: Base img"],
             [region_of_interest(grey(image)), f"{img}: ROI"],
             [region_of_interest(edges), f"{img}: Edge detect"],
-            [process_image(image, True), f"{img}: Lines"],
+            [process_image(image, True, True), f"{img}: Lines"],
         ]
 
         plt.figure(figsize=(20, 15))
