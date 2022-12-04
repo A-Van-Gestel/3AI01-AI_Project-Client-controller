@@ -1,8 +1,7 @@
 import argparse  # parsing command line arguments
-import shutil  # high level file operations
 import base64  # decoding camera images
 import os  # write + read files
-import random
+import shutil  # high level file operations
 from datetime import datetime  # to set frame timestamp
 from io import BytesIO  # manipulate string and byte data in memory
 
@@ -13,7 +12,8 @@ import socketio  # real-time server
 from PIL import Image  # image manipulation
 from flask import Flask  # framework for web devices
 
-from opencv_lane_detection import process_image
+# from opencv_lane_detection import process_image
+from road_lane_detection import process_image
 
 # from keras.models import load_model  # load our saved model
 
@@ -22,7 +22,7 @@ height = 320
 width = 160
 
 # set min/max speed for our autonomous car
-max_speed = 30
+max_speed = 25
 min_speed = 10
 
 # and a speed limit
@@ -67,15 +67,21 @@ def telemetry(sid, data):
             # steering_angle = float(net.predict(image))
             # steering_angle = random.uniform(-25.0, 25.0)
             steering_angle = process_image(image)
+            steering_angle /= 25  # Steering angle needs to be normalised between -1 & 1
             # steering_angle = 1.0
 
+            # lower the throttle as the speed increases
+            # if the speed is above the current speed limit, we are on a downhill.
+            # make sure we slow down first and then go back to the original max speed.
             global speed_limit
             if speed > speed_limit:
-                speed_limit = min_speed
+                speed_limit = min_speed  # slow down
+                throttle = -0.2
             else:
                 speed_limit = max_speed
-            throttle = abs((1.0 - steering_angle ** 2 - (speed / speed_limit) ** 2))
-            # throttle = random.uniform(0.0, 10.0)
+                throttle = 1 * (1.25 - abs(steering_angle))
+            # throttle = 1.0 - abs(steering_angle) ** 2 - (speed / speed_limit) ** 2
+            # throttle = speed_limit - math.log(abs(steering_angle)) * speed
 
             print('{} {} {}'.format(steering_angle, throttle, speed))
             send_control(steering_angle, throttle)
@@ -84,7 +90,6 @@ def telemetry(sid, data):
             print(e)
 
     else:
-
         sio.emit('manual', data={}, skip_sid=True)
 
 
@@ -95,7 +100,6 @@ def connect(sid, environ):
 
 
 def send_control(steering_angle, throttle):
-    steering_angle /= 25
     steering_angle = str(steering_angle).replace(".", ",")
     throttle = str(throttle).replace(".", ",")
 

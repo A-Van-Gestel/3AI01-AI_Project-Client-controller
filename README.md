@@ -24,7 +24,7 @@
 - OpenCV - Best lanes only: `opencv_lane_detection.py`
   - Based on: [Finding Lane Lines on the Road
 ](https://jefflirion.github.io/udacity_car_nanodegree_project01/P1.html)
-- OpenCV - Average lanes: `road_lane_detection (1).py`
+- OpenCV - Average lanes: `road_lane_detection.py`
   - Based on: [Building a lane detection system
 with Python 3 & OpenCV](https://medium.com/analytics-vidhya/building-a-lane-detection-system-f7a727c6694)
 
