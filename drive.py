@@ -57,9 +57,9 @@ image_array_before = None
 def telemetry(sid, data):
     if data:
         # Read data Unity sends us
-        steering_angle = float(data["steering_angle"].replace(",", "."))
-        throttle = float(data["throttle"].replace(",", "."))
-        speed = float(data["speed"].replace(",", "."))
+        steering_angle = float(data["steering_angle"])
+        throttle = float(data["throttle"])
+        speed = float(data["speed"])
         image = Image.open(BytesIO(base64.b64decode(data["image"])))
 
         # save frame
@@ -119,8 +119,8 @@ def connect(sid, environ):
 
 
 def send_control(steering_angle, throttle):
-    steering_angle = str(steering_angle).replace(".", ",")
-    throttle = str(throttle).replace(".", ",")
+    steering_angle = str(steering_angle)
+    throttle = str(throttle)
 
     sio.emit(
         "steer",

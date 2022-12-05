@@ -1,6 +1,7 @@
 python-socketio==4.6.1
 python-engineio==3.13.2
 numpy
+pandas
 flask
 opencv-python==4.5.5.64
 opencv-contrib-python==4.5.5.64
