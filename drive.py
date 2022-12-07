@@ -18,24 +18,19 @@ from road_lane_detection import process_image
 # from keras.models import load_model  # load our saved model
 
 # Set resulting image width & height
-height = 320
-width = 160
+width = 320
+height = 160
 
-# set min/max speed for our autonomous car
-max_speed = 25
-min_speed = 10
+# set target speed for our autonomous car, it will always try to keep this speed
+target_speed = 15
 
 # set max steering angle for our autonomous car
 max_steering_angle = 25
 
 # steering angle smoothing options
 angle_smoothing = True
-average_length = 5
-angle_history = [0.0] * average_length
-
-
-# and a speed limit
-speed_limit = max_speed
+smoothing_strength = 10
+angle_history = [0.0] * smoothing_strength  # Fill at startup fully with 0.0 based on smoothing strength
 
 
 def resize(image):
@@ -93,14 +88,10 @@ def telemetry(sid, data):
             # lower the throttle as the speed increases
             # if the speed is above the current speed limit, we are on a downhill.
             # make sure we slow down first and then go back to the original max speed.
-            global speed_limit
-            if speed > speed_limit:
-                speed_limit = min_speed  # slow down
-                throttle = -0.2
+            if speed > target_speed:
+                throttle = -1.0  # slow down
             else:
-                speed_limit = max_speed
-                throttle = 1 * (1.25 - abs(steering_angle))
-            # throttle = 1.0 - abs(steering_angle) ** 2 - (speed / speed_limit) ** 2
+                throttle = 1.25 - abs(steering_angle)  # speed up proportional to the steering angle (eg: sharp turn = slower acceleration)
 
             print('{} {} {}'.format(steering_angle, throttle, speed))
             send_control(steering_angle, throttle)
@@ -119,14 +110,11 @@ def connect(sid, environ):
 
 
 def send_control(steering_angle, throttle):
-    steering_angle = str(steering_angle)
-    throttle = str(throttle)
-
     sio.emit(
         "steer",
         data={
-            "steering_angle": steering_angle,
-            "throttle": throttle
+            "steering_angle": str(steering_angle),
+            "throttle": str(throttle)
         },
         skip_sid=True)
 
