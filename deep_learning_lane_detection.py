@@ -137,6 +137,7 @@ def plotAccuracy(history):
     plt.show()
 
 
+# Only run when this script is called directly
 if __name__ == "__main__":
     lines = read_driver_log(data_dir)
     print(f"Read {len(lines)} lines")

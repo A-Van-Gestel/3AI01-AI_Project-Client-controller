@@ -18,7 +18,7 @@ def gauss(image):
     return cv2.GaussianBlur(image, (5, 5), 0)
 
 
-# outline the strongest gradients in the image --> this is where lines in the image are
+# Outline the strongest gradients in the image --> this is where lines in the image are
 def canny(image):
     edges = cv2.Canny(image, 40, 200)
     return edges
@@ -51,7 +51,7 @@ def region_of_interest(image):
 
     # create a black image with the same dimensions as original image
     mask = np.zeros_like(image)
-    # create a mask (triangle that isolates the region of interest in our image)
+    # create a mask that isolates the region of interest in our image
     mask = cv2.fillPoly(mask, vertices, 255)
     mask = cv2.bitwise_and(image, mask)
 
@@ -138,6 +138,7 @@ def average(image, lines):
 
 
 def make_points(image, average):
+    # TODO: Keep coordinates in the image if possible (not needed for degree calculation but nice when drawing the lines)
     # print(f"average: {average}")
     slope, y_int = average
     y1 = image.shape[0]
@@ -156,9 +157,9 @@ def make_points(image, average):
 
 def hough_transform(image):
     rho = 3  # The resolution of the parameter r in pixels
-    threshold = 100  # The minimum number of intersections to "*detect*" a line
-    min_line_length = 40  # minimum number of points that can form a line. Lines with less than this number of points are disregarded
-    max_line_gap = 5  # maximum gap between two points to be considered in the same line.
+    threshold = 100  # Min number of intersections to "*detect*" a line
+    min_line_length = 40  # Min number of points that can form a line. Lines with less than this number of points are disregarded
+    max_line_gap = 5  # Max gap between two points to be considered in the same line.
 
     lines = cv2.HoughLinesP(image,
                             rho,
@@ -232,6 +233,7 @@ def midpoint(point1, point2):
             (point1[1] + point2[1]) / 2)
 
 
+# Only run when this script is called directly
 if __name__ == "__main__":
     # Test images
     import os
