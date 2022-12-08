@@ -11,40 +11,38 @@ import numpy as np  # matrix math
 import socketio  # real-time server
 from PIL import Image  # image manipulation
 from flask import Flask  # framework for web devices
+from keras.models import load_model  # load our saved model
 
 # from opencv_lane_detection import process_image
 from road_lane_detection import process_image
 
-# from keras.models import load_model  # load our saved model
+from deep_learning_lane_detection import preprocess
 
-# Set resulting image width & height
-width = 320
-height = 160
+# --- Settings ---
+prediction_mode = 'cnn'
 
-# set target speed for our autonomous car, it will always try to keep this speed
+model_path = 'model/model.h5'
+
+# Target speed for our autonomous car, it will always try to keep this speed
 target_speed = 15
 
-# set max steering angle for our autonomous car
+# Max steering angle for our autonomous car
 max_steering_angle = 25
 
-# steering angle smoothing options
+# steering angle smoothing options (Only in OpenCV mode)
 angle_smoothing = True
 smoothing_strength = 10
 angle_history = [0.0] * smoothing_strength  # Fill at startup fully with 0.0 based on smoothing strength
 
 
-def resize(image):
-    return cv2.resize(image, (width, height), cv2.INTER_AREA)
-
-
+# --- Application ---
 # initialize our server
 sio = socketio.Server(always_connect=True)
 # flask web app
 application = Flask(__name__)
 
-# init our model and image array as empty
-net = None
-image_array_before = None
+# init our model as empty
+model = None
 
 
 # Server event handler
@@ -65,23 +63,26 @@ def telemetry(sid, data):
 
         try:
             image = np.asarray(image)
-            # image = resize(image)
-            # image = np.array([image])
 
-            # steering_angle = float(net.predict(image))
-            steering_angle = process_image(image)
-            # Clamp steering angle between -25 & 25
-            steering_angle = max_steering_angle if steering_angle > max_steering_angle else steering_angle
-            steering_angle = -max_steering_angle if steering_angle < - max_steering_angle else steering_angle
-            # Steering angle needs to be normalised between -1 & 1
-            steering_angle /= max_steering_angle
+            if prediction_mode == 'cnn':
+                image = preprocess(image)  # apply the preprocessing
+                image = np.array([image])  # the model expects 4D array
+                steering_angle = float(model.predict(image))
+            else:
+                steering_angle = process_image(image)
+                # Clamp steering angle between -25 & 25
+                steering_angle = max_steering_angle if steering_angle > max_steering_angle else steering_angle
+                steering_angle = -max_steering_angle if steering_angle < - max_steering_angle else steering_angle
+                # Steering angle needs to be normalised between -1 & 1
+                steering_angle /= max_steering_angle
 
-            if angle_smoothing:
-                # save steering angle to history
+            # Only allow steering angle smoothing in opencv mode
+            if angle_smoothing and prediction_mode != 'cnn':
+                # Save steering angle to history
                 angle_history.pop(0)
                 angle_history.append(steering_angle)
 
-                # get average of steering angle over the history to smooth the output
+                # Get average of steering angle over the history to smooth the output
                 steering_angle = sum(angle_history) / len(angle_history)
                 print(f"angle_history: {angle_history}")
 
@@ -91,7 +92,8 @@ def telemetry(sid, data):
             if speed > target_speed:
                 throttle = -1.0  # slow down
             else:
-                throttle = 1.25 - abs(steering_angle)  # speed up proportional to the steering angle (eg: sharp turn = slower acceleration)
+                throttle = 1.25 - abs(
+                    steering_angle)  # speed up proportional to the steering angle (eg: sharp turn = slower acceleration)
 
             print('{} {} {}'.format(steering_angle, throttle, speed))
             send_control(steering_angle, throttle)
@@ -122,11 +124,11 @@ def send_control(steering_angle, throttle):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Remote Driving')
     parser.add_argument(
-        'model',
+        'prediction_mode',
         type=str,
         nargs='?',
-        default='model.h5',
-        help='Path to model h5 file. Model should be on the same path.'
+        default='cnn',
+        help='opencv | cnn'
     )
     parser.add_argument(
         'image_folder',
@@ -137,8 +139,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # load model
-    # model = load_model(args.model)
+    prediction_mode = args.prediction_mode
+
+    # Load model only if needed
+    if prediction_mode == 'cnn':
+        model = load_model(model_path)
 
     if args.image_folder != '':
         print("Creating image folder at {}".format(args.image_folder))

@@ -6,9 +6,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from keras import callbacks
-from keras.layers import Dense, Dropout, Flatten
+from keras.layers import Dense, Dropout, Flatten, BatchNormalization, Lambda
 from keras.layers.convolutional import Conv2D
 from keras.models import Sequential
+from keras.optimizers import Adam
+from keras.preprocessing.image import ImageDataGenerator
+from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split
+
+IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS = 66, 200, 3
+INPUT_SHAPE = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
 
 
 # Try to fix the "ran out of memory trying to allocate" error
@@ -60,27 +67,64 @@ def read_driver_log(path: str):
     return lines
 
 
+# Source for crop, resize, rgb2yuv & preprocess functions
+# https://github.com/llSourcell/How_to_simulate_a_self_driving_car
+def crop(image):
+    """
+    Crop the image (removing the sky at the top and the car front at the bottom)
+    """
+    return image[60:-25, :, :]  # remove the sky and the car front
+
+
+def resize(image):
+    """
+    Resize the image to the input shape used by the network model
+    """
+    return cv2.resize(image, (IMAGE_WIDTH, IMAGE_HEIGHT), cv2.INTER_AREA)
+
+
+def rgb2yuv(image):
+    """
+    Convert the image from RGB to YUV (This is what the NVIDIA model does)
+    """
+    return cv2.cvtColor(image, cv2.COLOR_RGB2YUV)
+
+
+def preprocess(image):
+    """
+    Combine all preprocess functions into one
+    """
+    image = crop(image)
+    image = resize(image)
+    image = rgb2yuv(image)
+    return image
+
+
 def data_array(list: list):
     images = []
     measurements = []
     for line in list:
-        img = cv2.imread(f"{data_dir}/{line[0]}")
-        # measurement = [*line[1:]]  # steering, throttle, reverse, speed
-        measurement = line[1]  # steering
+        img = preprocess(cv2.imread(f"{data_dir}/{line[0]}"))
+        steering = line[1]  # steering
 
         # Add original img
         images.append(img)
-        measurements.append(measurement)
+        measurements.append(steering)
 
         # Flip image and steering angles and add to list
         images.append(cv2.flip(img, 1))
         # steering, throttle, reverse, speed = measurement
-        # measurements.append([-steering, throttle, reverse, speed])
-        measurements.append(-measurement)
+        measurements.append(-steering)
 
-    x = np.array(images)
-    y = np.array(measurements)
-    return x, y
+    images = np.array(images)
+    labels = np.array(measurements)
+    return images, labels
+
+
+def data_split(X, y):
+    # now we can split the data into a training (80), testing(20), and validation set
+    X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2, random_state=0)
+    return X_train, X_valid, y_train, y_valid
 
 
 def build_model():
@@ -88,8 +132,14 @@ def build_model():
     # initializing the CNN
     model = Sequential()
 
+    # Normalizes incoming inputs. First layer needs the input shape to work
+    # model.add(BatchNormalization())
+
     # add model layers
-    model.add(Conv2D(24, (5, 5), input_shape=(target_size[0], target_size[1], 3), strides=(2, 2), activation='relu'))
+    # Image normalization to avoid saturation and make gradients work better.
+    model.add(Lambda(lambda x: x / 127.5 - 1.0, input_shape=INPUT_SHAPE))
+
+    model.add(Conv2D(24, (5, 5), strides=(2, 2), activation='relu'))
     model.add(Conv2D(36, (5, 5), strides=(2, 2), activation='relu'))
     model.add(Conv2D(48, (5, 5), strides=(2, 2), activation='relu'))
     model.add(Conv2D(64, (3, 3), strides=(2, 2), activation='relu'))
@@ -101,17 +151,17 @@ def build_model():
     model.add(Dropout(0.5))
     model.add(Dense(1))
 
-    model.compile(optimizer='adam', loss='mse', metrics=["accuracy"])
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_squared_error', metrics=["mean_squared_error"])
 
     return model
 
 
 def get_callbacks():
-    # Automatically stop training the model when the validation loss doesn't decrease more than '0' over a period of '20' epochs
+    # Automatically stop training the model when the validation loss doesn't decrease more than '0' over a period of '10' epochs
     callback_early_stopping = callbacks.EarlyStopping(
         monitor='val_loss',
         min_delta=0,
-        patience=20,
+        patience=10,
         mode='min')
 
     return [callback_early_stopping]
@@ -128,10 +178,10 @@ def plotLosses(history):
 
 
 def plotAccuracy(history):
-    plt.plot(history.history['accuracy'])
-    plt.plot(history.history['val_accuracy'])
+    plt.plot(history.history['mean_squared_error'])
+    plt.plot(history.history['val_mean_squared_error'])
     plt.title('model accuracy')
-    plt.ylabel('accuracy')
+    plt.ylabel('mean_squared_error')
     plt.xlabel('epoch')
     plt.legend(['train', 'validation'], loc='upper left')
     plt.show()
@@ -141,19 +191,27 @@ def plotAccuracy(history):
 if __name__ == "__main__":
     lines = read_driver_log(data_dir)
     print(f"Read {len(lines)} lines")
-    X_train, y_train = data_array(lines)
+    train_images, labels = data_array(lines)
+
+    # Shuffle images along with their labels, then split into training/validation sets
+    train_images, labels = shuffle(train_images, labels)
+    X_train, X_val, y_train, y_val = data_split(train_images, labels)
     print(f"Created {len(X_train)} samples")
+
+    # Using a generator to help the model use less data
+    # Channel shifts help with shadows slightly
+    datagen = ImageDataGenerator(channel_shift_range=0.2)
+    # datagen.fit(X_train)
 
     model = build_model()
 
-    with tf.device('/cpu:0'):  # Run on the CPU to decrease the chance of it crashing do to running out of video memory.
-        history = model.fit(
-            X_train,
-            y_train,
-            steps_per_epoch=len(X_train) // batch_size,
-            epochs=500,
-            callbacks=get_callbacks(),
-            validation_split=0.20)
+    # with tf.device('/cpu:0'):  # Run on the CPU to decrease the chance of it crashing do to running out of video memory.
+    history = model.fit(
+        datagen.flow(X_train, y_train, batch_size=batch_size),
+        steps_per_epoch=len(X_train) // batch_size,
+        epochs=500,
+        callbacks=get_callbacks(),
+        validation_data=(X_val, y_val))
 
     plotLosses(history)
     plotAccuracy(history)
