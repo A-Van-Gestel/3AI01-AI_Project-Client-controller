@@ -1,26 +1,24 @@
 import csv
+import math
 from os import path, makedirs
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
 from keras import callbacks
-from keras.layers import Dense, Dropout, Flatten, BatchNormalization, Lambda
+from keras.layers import Dense, Dropout, Flatten, Lambda
 from keras.layers.convolutional import Conv2D
 from keras.models import Sequential
 from keras.optimizers import Adam
-from keras.preprocessing.image import ImageDataGenerator
-from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
 
 IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS = 66, 200, 3
 INPUT_SHAPE = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
 
+model_name = 'model_augmentation_all'
 
-# Try to fix the "ran out of memory trying to allocate" error
-# gpus = tf.config.experimental.list_physical_devices('GPU')
-# tf.config.experimental.set_memory_growth(gpus[0], True)
 
 # Function to check if a directory exists, if not, make this directory
 def check_dir(directory: str):
@@ -50,7 +48,6 @@ def read_driver_log(paths: list):
     lines = []
     for path in paths:
         csv_path = path + '/driving_log.csv'
-        # drive_df = pd.read_csv(csv_path, names=['center', 'left', 'right', 'steering', 'throttle', 'reverse', 'speed'])
 
         with open(csv_path, 'r') as f:
             reader = csv.reader(f)
@@ -96,42 +93,95 @@ def rgb2yuv(image):
     return cv2.cvtColor(image, cv2.COLOR_RGB2YUV)
 
 
-def preprocess(image):
+def preprocess(image, conv_yuv=False):
     """
     Combine all preprocess functions into one
     """
     image = crop(image)
     image = resize(image)
-    image = rgb2yuv(image)
+    if conv_yuv:
+        image = rgb2yuv(image)
     return image
 
 
-def data_array(list: list):
-    images = []
-    measurements = []
-    for line in list:
-        path = line[-1]
-        img = preprocess(cv2.imread(f"{path}/{line[0]}"))
-        steering = line[1]  # steering
-
-        # Add original img
-        images.append(img)
-        measurements.append(steering)
-
-        # Flip image and steering angles and add to list
-        images.append(cv2.flip(img, 1))
-        # steering, throttle, reverse, speed = measurement
-        measurements.append(-steering)
-
-    images = np.array(images)
-    labels = np.array(measurements)
-    return images, labels
+# Source for generate_shadow_coordinates & add_shadow functions
+# https://www.freecodecamp.org/news/image-augmentation-make-it-rain-make-it-snow-how-to-modify-a-photo-with-machine-learning-163c0cb3843f/
+def generate_shadow_coordinates(img_shape, no_of_shadows=1):
+    vertices_list = []
+    for index in range(no_of_shadows):
+        vertex = []
+        for dimensions in range(np.random.randint(3, 15)):  # Dimensionality of the shadow polygon
+            vertex.append((img_shape[1] * np.random.uniform(), img_shape[0] // 3 + img_shape[0] * np.random.uniform()))
+            vertices = np.array([vertex], dtype=np.int32)  # single shadow vertices
+            vertices_list.append(vertices)
+            return vertices_list  # List of shadow vertices
 
 
-def data_split(X, y):
-    # now we can split the data into a training (80), testing(20), and validation set
-    X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2, random_state=0)
-    return X_train, X_valid, y_train, y_valid
+def add_shadow(image, no_of_shadows=1):
+    image_hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)  # Conversion to HLS
+    mask = np.zeros_like(image)
+    img_shape = image.shape
+    vertices_list = generate_shadow_coordinates(img_shape, no_of_shadows)  # 3 getting list of shadow vertices
+    for vertices in vertices_list:
+        cv2.fillPoly(mask, vertices,
+                     255)  # adding all shadow polygons on empty mask, single 255 denotes only red channel
+    image_hls[:, :, 1][mask[:, :, 0] == 255] = image_hls[:, :, 1][mask[:, :,
+                                                                  0] == 255] * 0.5  # if red channel is hot, image's "Lightness" channel's brightness is lowered
+    image_rgb = cv2.cvtColor(image_hls, cv2.COLOR_HLS2RGB)  # Conversion to RGB
+    return image_rgb
+
+
+def random_brightness(image):
+    """
+    Randomly adjust brightness of the image.
+    """
+    # HSV (Hue, Saturation, Value) is also called HSB ('B' for Brightness).
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    ratio = 1.0 + 0.4 * (np.random.rand() - 0.5)
+    hsv[:, :, 2] = hsv[:, :, 2] * ratio
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+
+def random_flip(image, steering_angle):
+    if np.random.rand() < 0.6:
+        # Flip image and steering angles
+        image = (cv2.flip(image, 1))
+        steering_angle = -steering_angle
+    return image, steering_angle
+
+
+def augment(image, steering_angle):
+    image, steering_angle = random_flip(image, steering_angle)
+    image = random_brightness(image)
+    image = add_shadow(image, np.random.randint(1, 3))
+    return image, steering_angle
+
+
+def data_generation(lines, batch_size, is_training=True):
+    num_lines = len(lines)
+
+    while True:
+        shuffle(lines)
+        for offset in range(0, num_lines, batch_size):
+            batch_lines = lines[offset:offset + batch_size]
+
+            images = []
+            measurements = []
+
+            for line in batch_lines:
+                path = line[-1]
+                img = preprocess(cv2.imread(f"{path}/{line[0]}"))
+                steering = line[1]  # steering
+
+                # argumentation if training
+                if is_training and np.random.rand() < 0.6:
+                    img, steering = augment(img, steering)
+
+                img = rgb2yuv(img)
+                images.append(img)
+                measurements.append(steering)
+
+            yield shuffle(np.array(images), np.array(measurements))
 
 
 def build_model():
@@ -182,46 +232,38 @@ def plotLosses(history):
     plt.xlabel('epoch')
     plt.legend(['train', 'validation'], loc='upper left')
     plt.show()
-
-
-def plotAccuracy(history):
-    plt.plot(history.history['mean_squared_error'])
-    plt.plot(history.history['val_mean_squared_error'])
-    plt.title('model accuracy')
-    plt.ylabel('mean_squared_error')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'validation'], loc='upper left')
-    plt.show()
+    plt.savefig(f'{check_dir("plots")}/{model_name}.png')
 
 
 # Only run when this script is called directly
 if __name__ == "__main__":
     lines = read_driver_log(data_dirs)
     print(f"Read {len(lines)} lines")
-    train_images, labels = data_array(lines)
 
     # Shuffle images along with their labels, then split into training/validation sets
-    train_images, labels = shuffle(train_images, labels)
-    X_train, X_val, y_train, y_val = data_split(train_images, labels)
-    print(f"Created {len(X_train)} samples")
+    train_dataset, val_dataset = train_test_split(lines, test_size=0.2, random_state=0)
+    print(f"Created {len(train_dataset)} train samples")
+    print(f"Created {len(val_dataset)} validation samples")
 
     # Using a generator to help the model use less data
-    # Channel shifts help with shadows slightly
-    datagen = ImageDataGenerator(channel_shift_range=0.2)
-    # datagen.fit(X_train)
+    training_generator = data_generation(train_dataset, batch_size=batch_size)
+    validation_generator = data_generation(val_dataset, batch_size=batch_size, is_training=False)
+
+    steps_per_epoch = int(math.ceil(len(train_dataset) / batch_size))
+    validation_steps = int(math.ceil(len(val_dataset) / batch_size))
 
     model = build_model()
 
     # with tf.device('/cpu:0'):  # Run on the CPU to decrease the chance of it crashing do to running out of video memory.
     history = model.fit(
-        datagen.flow(X_train, y_train, batch_size=batch_size),
-        steps_per_epoch=len(X_train) // batch_size,
-        epochs=500,
+        training_generator,
+        steps_per_epoch=steps_per_epoch,
+        epochs=20,
         callbacks=get_callbacks(),
-        validation_data=(X_val, y_val))
+        validation_data=validation_generator,
+        validation_steps=validation_steps)
 
     plotLosses(history)
-    plotAccuracy(history)
 
     # save the model
-    model.save('model/model.h5')
+    model.save(f'{check_dir("model")}/{model_name}.h5')

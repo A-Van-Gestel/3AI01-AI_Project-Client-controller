@@ -20,8 +20,9 @@ from deep_learning_lane_detection import preprocess
 
 # --- Settings ---
 prediction_mode = 'cnn'
-
-model_path = 'model/model.h5'
+# model_name = 'model_augmentation_test'
+model_name = 'model_augmentation_lake_only'
+model_path = f'model/{model_name}.h5'
 
 # Target speed for our autonomous car, it will always try to keep this speed
 target_speed = 15
@@ -65,7 +66,7 @@ def telemetry(sid, data):
             image = np.asarray(image)
 
             if prediction_mode == 'cnn':
-                image = preprocess(image)  # apply the preprocessing
+                image = preprocess(image, conv_yuv=True)  # apply the preprocessing
                 image = np.array([image])  # the model expects 4D array
                 steering_angle = float(model.predict(image))
             else:
