@@ -17,7 +17,7 @@ from sklearn.utils import shuffle
 IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS = 66, 200, 3
 INPUT_SHAPE = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
 
-model_name = 'model_augmentation_all'
+model_name = 'model_augmentation_lake_jungle_corrections'
 
 
 # Function to check if a directory exists, if not, make this directory
@@ -37,8 +37,10 @@ data_dirs = [
     '../Recording Jungle [Left lane]',
     '../Recording Jungle [Right lane]',
     '../Recording Lake',
-    '../Recording Mountain [Left lane]',
-    '../Recording Mountain [Right lane]'
+    '../Recording Jungle [Off Lane correction]',
+    '../Recording Lake [Off Lane correction]',
+    # '../Recording Mountain [Left lane]',
+    # '../Recording Mountain [Right lane]'
 ]
 batch_size = 32
 target_size = (160, 320)
@@ -231,8 +233,8 @@ def plotLosses(history):
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'validation'], loc='upper left')
-    plt.show()
     plt.savefig(f'{check_dir("plots")}/{model_name}.png')
+    plt.show()
 
 
 # Only run when this script is called directly
