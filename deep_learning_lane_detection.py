@@ -1,6 +1,5 @@
 import csv
 import math
-from os import path, makedirs
 
 import cv2
 import matplotlib.pyplot as plt
@@ -13,19 +12,12 @@ from keras.models import Sequential
 from keras.optimizers import Adam
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
+from utils import check_dir
 
 IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS = 66, 200, 3
 INPUT_SHAPE = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
 
 model_name = 'model_augmentation_lake_jungle_corrections'
-
-
-# Function to check if a directory exists, if not, make this directory
-def check_dir(directory: str):
-    dir_exists = path.isdir(directory)
-    if not dir_exists:
-        makedirs(directory)
-    return directory
 
 
 def relative_img_path(full_path: str):
@@ -34,11 +26,14 @@ def relative_img_path(full_path: str):
 
 
 data_dirs = [
+    '../Recording Lake',
+    '../Recording Lake [Off Lane correction]',
+
     '../Recording Jungle [Left lane]',
     '../Recording Jungle [Right lane]',
-    '../Recording Lake',
+    '../Recording Jungle [Center Lane]',
     '../Recording Jungle [Off Lane correction]',
-    '../Recording Lake [Off Lane correction]',
+
     # '../Recording Mountain [Left lane]',
     # '../Recording Mountain [Right lane]'
 ]
@@ -216,11 +211,11 @@ def build_model():
 
 
 def get_callbacks():
-    # Automatically stop training the model when the validation loss doesn't decrease more than '0' over a period of '10' epochs
+    # Automatically stop training the model when the validation loss doesn't decrease more than '0' over a period of '5' epochs
     callback_early_stopping = callbacks.EarlyStopping(
         monitor='val_loss',
         min_delta=0,
-        patience=10,
+        patience=5,
         mode='min')
 
     return [callback_early_stopping]
@@ -233,7 +228,7 @@ def plotLosses(history):
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'validation'], loc='upper left')
-    plt.savefig(f'{check_dir("plots")}/{model_name}.png')
+    plt.savefig(f'{check_dir("plots_cnn")}/{model_name}.png')
     plt.show()
 
 
@@ -260,7 +255,7 @@ if __name__ == "__main__":
     history = model.fit(
         training_generator,
         steps_per_epoch=steps_per_epoch,
-        epochs=20,
+        epochs=50,
         callbacks=get_callbacks(),
         validation_data=validation_generator,
         validation_steps=validation_steps)

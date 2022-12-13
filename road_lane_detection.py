@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import image as mpimg
 
+from utils import check_dir
+
 debug = False
 
 
@@ -220,8 +222,23 @@ def process_image(image, draw_image=False, debug_prints=False):
         black_lines = display_lines(image, averaged_lines[0:1])
 
         # taking wighted sum of original image and lane lines image
-        lanes = cv2.addWeighted(image, 0.8, black_lines, 1, 1)
-        return lanes
+        img_lanes = cv2.addWeighted(image, 0.8, black_lines, 1, 1)
+
+        left_line, right_line, degrees_left_slope, degrees_right_slope = averaged_lines
+        img_lanes_title = 'No lanes detected'
+        # If both lanes are detected, use the angle of the midpoint
+        if left_line is not None and right_line is not None:
+            img_lanes_title = 'Both lanes detected'
+
+        # If only the left lane is detected, use its slope
+        if left_line is not None:
+            img_lanes_title = 'Left lane detected'
+
+        # If only the right lane is detected, use its slope
+        if right_line is not None:
+            img_lanes_title = 'Right lane detected'
+
+        return img_lanes, img_lanes_title
 
     return degrees
 
@@ -250,12 +267,13 @@ if __name__ == "__main__":
         gray = grey(blur)
         edges = canny(gray)
         isolated = region_of_interest(edges)
+        processed, detected_lanes = process_image(image, True, True)
 
         images = [
-            [image, f"{img}: Base img"],
-            [region_of_interest(grey(image)), f"{img}: ROI"],
+            [image, f"{img}: Base image"],
+            [region_of_interest(grey(image)), f"{img}: Region Of Interest (ROI)"],
             [region_of_interest(edges), f"{img}: Edge detect"],
-            [process_image(image, True, True), f"{img}: Lines"],
+            [processed, f"{img}: Lines - {detected_lanes}"],
         ]
 
         plt.figure(figsize=(20, 15))
@@ -265,5 +283,6 @@ if __name__ == "__main__":
             plt.axis('off')
             plt.title(images[i][1])
 
+        plt.savefig(f'{check_dir("plots_opencv")}/{img}.png')
         plt.show()
         print("\n")
