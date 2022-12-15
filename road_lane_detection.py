@@ -38,7 +38,7 @@ def region_of_interest(image):
     top = 0.40 * rows
     top_width = 0.20 * cols
     top_left_margin = 0.50 * cols
-    top_right_margin = 0.0 * cols
+    top_right_margin = 0.50 * cols
 
     # a mask to be applied to the image
     top_left = (left + right - top_width - top_left_margin) / 2
