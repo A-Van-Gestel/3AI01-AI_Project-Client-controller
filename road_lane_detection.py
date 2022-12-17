@@ -221,7 +221,7 @@ def process_image(image, draw_image=False, debug_prints=False):
         # Visual part
         black_lines = display_lines(image, averaged_lines[0:1])
 
-        # taking wighted sum of original image and lane lines image
+        # taking weighted sum of original image and lane lines image
         img_lanes = cv2.addWeighted(image, 0.8, black_lines, 1, 1)
 
         left_line, right_line, degrees_left_slope, degrees_right_slope = averaged_lines
